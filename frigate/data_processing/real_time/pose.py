@@ -76,6 +76,14 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
     def process_frame(self, obj_data: dict[str, Any], frame: np.ndarray):
         """Look for poses in detected person objects."""
         self.metrics.pose_fps.value = self.poses_per_second.eps()
+
+        # Early exit for non-person objects and model not ready
+        if obj_data.get("label", "unknown") != "person":
+            return
+
+        if not self.model_ready:
+            return
+
         camera = obj_data["camera"]
 
         cam_config = (
@@ -90,6 +98,9 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         else:
             cam_pose_enabled = self.config.pose_detection.enabled
 
+        if not cam_pose_enabled:
+            return
+
         # Resolve poses: per-camera list > global list
         cam_poses = (
             cam_config.poses
@@ -97,25 +108,8 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             else self.pose_config.poses
         )
 
-        logger.debug(
-            f"Pose process_frame: camera={camera}, label={obj_data.get('label')}, "
-            f"model_ready={self.model_ready}, cam_enabled={cam_pose_enabled}, "
-            f"cam_poses={cam_poses}"
-        )
-
-        if not self.model_ready:
-            return
-
-        if not cam_pose_enabled:
-            return
-
         start = datetime.datetime.now().timestamp()
         obj_id = obj_data["id"]
-        obj_label = obj_data.get("label", "unknown")
-
-        # Only process person objects
-        if obj_label != "person":
-            return
 
         # Don't overwrite sub_label for objects that already have a non-pose sub_label
         if obj_data.get("sub_label") and obj_id not in self.person_pose_history:
