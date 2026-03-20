@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import ConfigDict, Field
 
@@ -461,10 +461,10 @@ class PoseDetectionConfig(FrigateBaseModel):
         gt=0.0,
         le=1.0,
     )
-    model_size: str = Field(
+    model_size: Literal["nano", "small", "medium", "large", "xlarge"] = Field(
         default="nano",
         title="Model size",
-        description="Model size for pose estimation: 'nano' (yolo11n-pose), 'small' (yolo11s-pose), 'medium' (yolo11m-pose), 'large' (yolo11l-pose), or 'xlarge' (yolo11x-pose).",
+        description="Model size for pose estimation.",
     )
     poses: List[str] = Field(
         default=["hands_up", "t_pose", "waving", "left_hand_up", "right_hand_up", "sitting", "standing", "lying_down", "crouching", "pointing"],

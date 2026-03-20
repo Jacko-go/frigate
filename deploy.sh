@@ -9,6 +9,21 @@ echo "🔄 Pulling latest code..."
 cd "$REPO_DIR"
 git pull
 
+echo "📦 Downloading pose models (if needed)..."
+MODELS_DIR="$REPO_DIR/models"
+mkdir -p "$MODELS_DIR"
+POSE_MODELS="yolo11n-pose yolo11s-pose yolo11m-pose yolo11l-pose yolo11x-pose"
+for model in $POSE_MODELS; do
+  if [ ! -f "$MODELS_DIR/${model}.onnx" ]; then
+    echo "  ⬇ Downloading ${model}.onnx..."
+    wget -q -O "$MODELS_DIR/${model}.onnx" \
+      "https://github.com/ultralytics/assets/releases/download/v8.3.0/${model}.onnx" || \
+      echo "  ⚠ Failed to download ${model}.onnx"
+  else
+    echo "  ✓ ${model}.onnx already exists"
+  fi
+done
+
 echo "🔨 Building Docker image (this may take a while)..."
 make local
 
