@@ -57,11 +57,10 @@ class PoseEstimator:
                     break
 
             if model_path is None:
-                logger.warning(
-                    f"Pose model {model_name} not found in any search path. "
-                    f"Searched: {search_paths}. Pose detection will be unavailable."
-                )
-                return False
+                # Auto-download and export the model
+                model_path = self._download_and_export(model_name, model_cache)
+                if model_path is None:
+                    return False
 
             providers = ["CPUExecutionProvider"]
             if self.device:
@@ -94,6 +93,48 @@ class PoseEstimator:
         except Exception as e:
             logger.error(f"Failed to load pose model: {e}")
             return False
+
+    def _download_and_export(self, model_name: str, cache_dir: str) -> Optional[str]:
+        """Download a YOLO11 pose model and export to ONNX."""
+        try:
+            from ultralytics import YOLO
+
+            # Map ONNX name back to pt name
+            pt_name = model_name.replace(".onnx", ".pt")
+            pose_cache = os.path.join(cache_dir, "pose")
+            os.makedirs(pose_cache, exist_ok=True)
+
+            onnx_path = os.path.join(pose_cache, model_name)
+
+            logger.info(
+                f"Pose model {model_name} not found locally. "
+                f"Downloading and exporting to ONNX (this may take a minute)..."
+            )
+
+            # YOLO auto-downloads the .pt from Ultralytics hub
+            model = YOLO(pt_name)
+            export_path = model.export(format="onnx", imgsz=640)
+
+            # Move exported file to our cache dir
+            if export_path and os.path.exists(export_path):
+                if str(export_path) != onnx_path:
+                    import shutil
+                    shutil.move(str(export_path), onnx_path)
+                logger.info(f"Pose model exported and cached: {onnx_path}")
+                return onnx_path
+            else:
+                logger.error("ONNX export succeeded but output file not found.")
+                return None
+
+        except ImportError:
+            logger.error(
+                f"Ultralytics is not installed. Cannot auto-download {model_name}. "
+                f"Install with: pip install ultralytics, or manually place {model_name} in /models/"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Failed to download/export pose model {model_name}: {e}")
+            return None
 
     def estimate(
         self, frame: np.ndarray
