@@ -121,18 +121,17 @@ def _check_pose(
 
 
 def _check_hands_up(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
-    """Both wrists above both shoulders."""
+    """Both wrists above shoulder midpoint."""
     if not all(_kp_valid(kps, i, min_conf) for i in [LEFT_WRIST, RIGHT_WRIST, LEFT_SHOULDER, RIGHT_SHOULDER]):
         return None
 
     l_wrist_y = kps[LEFT_WRIST][1]
     r_wrist_y = kps[RIGHT_WRIST][1]
-    l_shoulder_y = kps[LEFT_SHOULDER][1]
-    r_shoulder_y = kps[RIGHT_SHOULDER][1]
+    # Use average shoulder height as reference (more forgiving)
+    shoulder_mid_y = (kps[LEFT_SHOULDER][1] + kps[RIGHT_SHOULDER][1]) / 2
 
     # In image coords, y increases downward, so "above" means lower y value
-    if l_wrist_y < l_shoulder_y and r_wrist_y < r_shoulder_y:
-        # Both hands are above shoulders
+    if l_wrist_y < shoulder_mid_y and r_wrist_y < shoulder_mid_y:
         conf = min(kps[LEFT_WRIST][2], kps[RIGHT_WRIST][2], kps[LEFT_SHOULDER][2], kps[RIGHT_SHOULDER][2])
         return ("hands_up", conf)
 
@@ -145,11 +144,11 @@ def _check_t_pose(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
     if not all(_kp_valid(kps, i, min_conf) for i in needed):
         return None
 
-    # Both arms must be extended (shoulder-elbow-wrist angle > 150)
+    # Both arms must be extended (shoulder-elbow-wrist angle > 140)
     left_arm_angle = _angle(kps[LEFT_SHOULDER], kps[LEFT_ELBOW], kps[LEFT_WRIST])
     right_arm_angle = _angle(kps[RIGHT_SHOULDER], kps[RIGHT_ELBOW], kps[RIGHT_WRIST])
 
-    if left_arm_angle < 150 or right_arm_angle < 150:
+    if left_arm_angle < 140 or right_arm_angle < 140:
         return None
 
     # Both arms must be roughly horizontal (wrist within shoulder height tolerance)
@@ -164,11 +163,15 @@ def _check_t_pose(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
 
 
 def _check_waving(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
-    """One hand well above the head (nose level)."""
+    """One hand well above the head (significantly above nose level)."""
     if not _kp_valid(kps, NOSE, min_conf):
         return None
 
     nose_y = kps[NOSE][1]
+
+    # Need a body height reference for meaningful margin
+    body_h = _body_height(kps, min_conf)
+    margin = body_h * 0.15 if body_h > 0 else 20  # wrist must be this far above nose
 
     for wrist_idx in [LEFT_WRIST, RIGHT_WRIST]:
         if not _kp_valid(kps, wrist_idx, min_conf):
@@ -176,8 +179,8 @@ def _check_waving(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
 
         wrist_y = kps[wrist_idx][1]
 
-        # Wrist is well above nose (at least some margin)
-        if wrist_y < nose_y:
+        # Wrist must be well above nose (not just barely)
+        if wrist_y < nose_y - margin:
             # Check the corresponding elbow is also raised
             elbow_idx = LEFT_ELBOW if wrist_idx == LEFT_WRIST else RIGHT_ELBOW
             shoulder_idx = LEFT_SHOULDER if wrist_idx == LEFT_WRIST else RIGHT_SHOULDER

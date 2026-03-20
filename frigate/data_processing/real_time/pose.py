@@ -26,7 +26,6 @@ from .api import RealTimeProcessorApi
 
 logger = logging.getLogger(__name__)
 
-MAX_POSE_ATTEMPTS = 8
 MIN_CROP_PIXELS = 40  # skip tiny person crops
 SMOOTHING_WINDOW = 5  # number of recent frames for majority-vote smoothing
 SMOOTHING_THRESHOLD = 3  # min votes to accept a pose
@@ -53,7 +52,6 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         # Track pose history per object and cooldowns
         self.person_pose_history: dict[str, list[tuple[str, float]]] = {}
         self.person_pose_cooldown: dict[str, dict[str, float]] = {}
-        self.person_attempt_count: dict[str, int] = {}
 
         # Smoothing buffer: last N raw classifications per tracked object
         self.pose_smooth_buffer: dict[str, deque] = {}
@@ -118,8 +116,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             )
             return
 
-        # Limit classification attempts per object (overlay still works)
-        attempt_count = self.person_attempt_count.get(obj_id, 0)
+
 
         # Check person score against threshold
         score = obj_data.get("score", 0.0)
@@ -290,7 +287,6 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         """Clean up tracking state when a person object expires."""
         self.person_pose_history.pop(object_id, None)
         self.person_pose_cooldown.pop(object_id, None)
-        self.person_attempt_count.pop(object_id, None)
         self.pose_smooth_buffer.pop(object_id, None)
 
     def __update_metrics(self, duration: float) -> None:
