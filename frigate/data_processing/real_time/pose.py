@@ -54,6 +54,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         self.person_pose_cooldown: dict[str, dict[str, float]] = {}
 
         # Smoothing buffer: last N raw classifications per tracked object
+        # Each entry is (pose_name, confidence)
         self.pose_smooth_buffer: dict[str, deque] = {}
 
         self.poses_per_second = EventsPerSecond()
@@ -208,21 +209,28 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         if obj_id not in self.pose_smooth_buffer:
             self.pose_smooth_buffer[obj_id] = deque(maxlen=SMOOTHING_WINDOW)
 
-        self.pose_smooth_buffer[obj_id].append(raw_pose)
-        counts = Counter(self.pose_smooth_buffer[obj_id])
-        top_pose, top_count = counts.most_common(1)[0]
+        self.pose_smooth_buffer[obj_id].append((raw_pose, raw_conf))
+
+        # Count votes (ignoring confidence for the vote)
+        pose_votes = Counter(entry[0] for entry in self.pose_smooth_buffer[obj_id])
+        top_pose, top_count = pose_votes.most_common(1)[0]
 
         # Only accept if it has enough votes (and isn't 'unknown')
         if top_pose != "unknown" and top_count >= SMOOTHING_THRESHOLD:
             pose_name = top_pose
-            pose_conf = raw_conf
+            # Use average confidence from frames that matched the winning pose
+            matching_confs = [
+                conf for name, conf in self.pose_smooth_buffer[obj_id]
+                if name == top_pose and conf > 0
+            ]
+            pose_conf = sum(matching_confs) / len(matching_confs) if matching_confs else 0.0
         else:
             pose_name = "unknown"
             pose_conf = 0.0
 
         logger.debug(
             f"Pose for {obj_id}: raw={raw_pose}({raw_conf:.2f}), "
-            f"smoothed={pose_name}, votes={dict(counts)}"
+            f"smoothed={pose_name}({pose_conf:.2f}), votes={dict(pose_votes)}"
         )
 
         # Send tracked object update for UI skeleton overlay (always)
@@ -243,7 +251,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         )
 
         # Only publish sub_label and MQTT when classification meets min_pose_score
-        if result and pose_conf >= self.pose_config.min_pose_score:
+        if pose_name != "unknown" and pose_conf >= self.pose_config.min_pose_score:
             now = datetime.datetime.now().timestamp()
             if obj_id in self.person_pose_cooldown:
                 last_time = self.person_pose_cooldown[obj_id].get(pose_name, 0)

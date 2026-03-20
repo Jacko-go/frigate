@@ -75,8 +75,9 @@ def classify_pose(
         return None
 
     all_poses = enabled_poses or [
-        "hands_up", "t_pose", "waving", "left_hand_up", "right_hand_up",
-        "lying_down", "sitting", "crouching", "standing", "pointing",
+        "hands_up", "t_pose",
+        "lying_down", "sitting", "pointing",
+        "left_hand_up", "right_hand_up",
     ]
 
     # Count valid keypoints for overall confidence
@@ -197,11 +198,15 @@ def _check_waving(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
 
 
 def _check_left_hand_up(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
-    """Left wrist above left shoulder (but not both hands up)."""
+    """Left wrist clearly above left shoulder (but not both hands up)."""
     if not all(_kp_valid(kps, i, min_conf) for i in [LEFT_WRIST, LEFT_SHOULDER]):
         return None
 
-    if kps[LEFT_WRIST][1] < kps[LEFT_SHOULDER][1]:
+    # Require wrist to be noticeably above shoulder, not just barely
+    body_h = _body_height(kps, min_conf)
+    margin = body_h * 0.1 if body_h > 0 else 15
+
+    if kps[LEFT_WRIST][1] < kps[LEFT_SHOULDER][1] - margin:
         # Make sure RIGHT hand is NOT also up (that would be hands_up)
         if _kp_valid(kps, RIGHT_WRIST, min_conf) and _kp_valid(kps, RIGHT_SHOULDER, min_conf):
             if kps[RIGHT_WRIST][1] < kps[RIGHT_SHOULDER][1]:
@@ -214,11 +219,15 @@ def _check_left_hand_up(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
 
 
 def _check_right_hand_up(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
-    """Right wrist above right shoulder (but not both hands up)."""
+    """Right wrist clearly above right shoulder (but not both hands up)."""
     if not all(_kp_valid(kps, i, min_conf) for i in [RIGHT_WRIST, RIGHT_SHOULDER]):
         return None
 
-    if kps[RIGHT_WRIST][1] < kps[RIGHT_SHOULDER][1]:
+    # Require wrist to be noticeably above shoulder, not just barely
+    body_h = _body_height(kps, min_conf)
+    margin = body_h * 0.1 if body_h > 0 else 15
+
+    if kps[RIGHT_WRIST][1] < kps[RIGHT_SHOULDER][1] - margin:
         # Make sure LEFT hand is NOT also up (that would be hands_up)
         if _kp_valid(kps, LEFT_WRIST, min_conf) and _kp_valid(kps, LEFT_SHOULDER, min_conf):
             if kps[LEFT_WRIST][1] < kps[LEFT_SHOULDER][1]:

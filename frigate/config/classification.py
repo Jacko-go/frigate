@@ -467,7 +467,7 @@ class PoseDetectionConfig(FrigateBaseModel):
         description="Model size for pose estimation.",
     )
     poses: List[str] = Field(
-        default=["hands_up", "t_pose", "waving", "left_hand_up", "right_hand_up", "sitting", "standing", "lying_down", "crouching", "pointing"],
+        default=["hands_up", "t_pose", "lying_down", "sitting", "pointing", "left_hand_up", "right_hand_up"],
         title="Poses to detect",
         description="List of pose labels to classify from detected keypoints. Available: hands_up, t_pose, waving, left_hand_up, right_hand_up, sitting, standing, lying_down, crouching, pointing.",
     )
