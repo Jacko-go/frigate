@@ -497,15 +497,20 @@ class PoseDetectionConfig(FrigateBaseModel):
 
 
 class CameraPoseDetectionConfig(FrigateBaseModel):
-    enabled: bool = Field(
-        default=False,
+    enabled: Optional[bool] = Field(
+        default=None,
         title="Enable pose detection",
-        description="Enable or disable pose detection on this camera.",
+        description="Enable or disable pose detection on this camera. If not set, falls back to the global setting.",
     )
     min_area: int = Field(
         default=2000,
         title="Minimum person area",
         description="Minimum area (pixels) of a person bounding box required to attempt pose estimation.",
+    )
+    poses: Optional[List[str]] = Field(
+        default=None,
+        title="Poses to detect",
+        description="List of pose labels to classify for this camera. If not set, falls back to the global poses list.",
     )
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())

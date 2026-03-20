@@ -72,19 +72,29 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         self.metrics.pose_fps.value = self.poses_per_second.eps()
         camera = obj_data["camera"]
 
-        cam_pose_enabled = (
-            self.config.cameras[camera].pose_detection.enabled
+        cam_config = (
+            self.config.cameras[camera].pose_detection
             if camera in self.config.cameras
-            else False
+            else None
         )
 
-        # Fall back to global enabled flag if per-camera isn't explicitly set
-        if not cam_pose_enabled and self.config.pose_detection.enabled:
-            cam_pose_enabled = True
+        # Resolve enabled: per-camera explicit > global fallback
+        if cam_config and cam_config.enabled is not None:
+            cam_pose_enabled = cam_config.enabled
+        else:
+            cam_pose_enabled = self.config.pose_detection.enabled
+
+        # Resolve poses: per-camera list > global list
+        cam_poses = (
+            cam_config.poses
+            if cam_config and cam_config.poses is not None
+            else self.pose_config.poses
+        )
 
         logger.debug(
             f"Pose process_frame: camera={camera}, label={obj_data.get('label')}, "
-            f"model_ready={self.model_ready}, cam_enabled={cam_pose_enabled}"
+            f"model_ready={self.model_ready}, cam_enabled={cam_pose_enabled}, "
+            f"cam_poses={cam_poses}"
         )
 
         if not self.model_ready:
@@ -189,7 +199,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         result = classify_pose(
             keypoints,
             min_conf=self.pose_config.min_keypoint_score,
-            enabled_poses=self.pose_config.poses,
+            enabled_poses=cam_poses,
         )
 
         pose_name = "unknown"
