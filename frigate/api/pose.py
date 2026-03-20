@@ -112,10 +112,10 @@ async def pose_at_frame(
             status_code=500,
         )
 
-    # Run pose estimation
-    keypoints = estimator.estimate(frame)
+    # Run pose estimation on full frame — get ALL people
+    all_keypoints = estimator.estimate_all(frame)
 
-    if not keypoints:
+    if not all_keypoints:
         return JSONResponse(
             content={"success": True, "poses": []},
             status_code=200,
@@ -123,52 +123,51 @@ async def pose_at_frame(
 
     pose_cfg = config.pose_detection
     h, w = frame.shape[:2]
+    poses = []
 
-    # Normalize keypoints to 0-1 range (same as live overlay)
-    norm_keypoints = [
-        {"x": round(kx / w, 4), "y": round(ky / h, 4), "confidence": round(kc, 3)}
-        for kx, ky, kc in keypoints
-    ]
-
-    # Classify
-    result = classify_pose(
-        keypoints,
-        min_conf=pose_cfg.min_keypoint_score,
-        enabled_poses=pose_cfg.poses,
-    )
-
-    pose_name = "unknown"
-    pose_conf = 0.0
-    if result:
-        pose_name, pose_conf = result
-
-    # Derive bounding box from keypoints (normalized)
-    valid_pts = [
-        (kp["x"], kp["y"]) for kp in norm_keypoints if kp["confidence"] >= pose_cfg.min_keypoint_score
-    ]
-    box = [0, 0, 1, 1]
-    if len(valid_pts) >= 3:
-        xs = [p[0] for p in valid_pts]
-        ys = [p[1] for p in valid_pts]
-        pad = 0.02
-        box = [
-            max(0, min(ys) - pad),
-            max(0, min(xs) - pad),
-            min(1, max(ys) + pad),
-            min(1, max(xs) + pad),
+    for keypoints in all_keypoints:
+        # Normalize keypoints to 0-1 range (same as live overlay)
+        norm_keypoints = [
+            {"x": round(kx / w, 4), "y": round(ky / h, 4), "confidence": round(kc, 3)}
+            for kx, ky, kc in keypoints
         ]
 
+        # Classify
+        result = classify_pose(
+            keypoints,
+            min_conf=pose_cfg.min_keypoint_score,
+            enabled_poses=pose_cfg.poses,
+        )
+
+        pose_name = "unknown"
+        pose_conf = 0.0
+        if result:
+            pose_name, pose_conf = result
+
+        # Derive bounding box from keypoints (normalized)
+        valid_pts = [
+            (kp["x"], kp["y"]) for kp in norm_keypoints if kp["confidence"] >= pose_cfg.min_keypoint_score
+        ]
+        box = [0, 0, 1, 1]
+        if len(valid_pts) >= 3:
+            xs = [p[0] for p in valid_pts]
+            ys = [p[1] for p in valid_pts]
+            pad = 0.02
+            box = [
+                max(0, min(ys) - pad),
+                max(0, min(xs) - pad),
+                min(1, max(ys) + pad),
+                min(1, max(xs) + pad),
+            ]
+
+        poses.append({
+            "keypoints": norm_keypoints,
+            "pose": pose_name,
+            "score": round(pose_conf, 3),
+            "box": box,
+        })
+
     return JSONResponse(
-        content={
-            "success": True,
-            "poses": [
-                {
-                    "keypoints": norm_keypoints,
-                    "pose": pose_name,
-                    "score": round(pose_conf, 3),
-                    "box": box,
-                }
-            ],
-        },
+        content={"success": True, "poses": poses},
         status_code=200,
     )

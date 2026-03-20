@@ -136,7 +136,7 @@ class PoseEstimator:
         self, frame: np.ndarray
     ) -> Optional[list[tuple[float, float, float]]]:
         """
-        Run pose estimation on a BGR image of a person.
+        Run pose estimation on a BGR image — returns keypoints for the best detection.
 
         Args:
             frame: BGR numpy array (cropped person region).
@@ -145,8 +145,27 @@ class PoseEstimator:
             List of 17 (x, y, confidence) keypoint tuples in pixel coords
             relative to the input frame, or None on failure.
         """
+        results = self.estimate_all(frame)
+        if results:
+            return results[0]
+        return None
+
+    def estimate_all(
+        self, frame: np.ndarray, min_det_conf: float = 0.25
+    ) -> list[list[tuple[float, float, float]]]:
+        """
+        Run pose estimation on a BGR image — returns keypoints for ALL detected people.
+
+        Args:
+            frame: BGR numpy array.
+            min_det_conf: Minimum detection confidence to include a person.
+
+        Returns:
+            List of person detections, each being a list of 17 (x, y, confidence) keypoint tuples.
+            Sorted by detection confidence (highest first). Empty list on failure.
+        """
         if self.session is None:
-            return None
+            return []
 
         try:
             orig_h, orig_w = frame.shape[:2]
@@ -158,15 +177,13 @@ class PoseEstimator:
             outputs = self.session.run(None, {self.input_name: input_tensor})
 
             # Parse keypoints from output
-            keypoints = self._postprocess(
-                outputs, orig_w, orig_h, scale, pad_x, pad_y
+            return self._postprocess_all(
+                outputs, orig_w, orig_h, scale, pad_x, pad_y, min_det_conf
             )
-
-            return keypoints
 
         except Exception as e:
             logger.debug(f"Pose estimation failed: {e}")
-            return None
+            return []
 
     def _preprocess(
         self, frame: np.ndarray
@@ -202,52 +219,18 @@ class PoseEstimator:
 
         return blob, scale, pad_x, pad_y
 
-    def _postprocess(
+    def _extract_keypoints(
         self,
-        outputs: list[np.ndarray],
+        output: np.ndarray,
+        det_idx: int,
         orig_w: int,
         orig_h: int,
         scale: float,
         pad_x: float,
         pad_y: float,
-    ) -> Optional[list[tuple[float, float, float]]]:
-        """
-        Parse YOLO-Pose output to extract keypoints of the best detection.
-
-        YOLO-Pose output shape: (1, 56, N) where N is number of proposals.
-        Layout per proposal: [x_center, y_center, w, h, conf, kp0_x, kp0_y, kp0_conf, ..., kp16_x, kp16_y, kp16_conf]
-        Total = 4 (box) + 1 (conf) + 17 * 3 (keypoints) = 56
-        """
-        output = outputs[0]  # shape: (1, 56, N)
-
-        if output.ndim == 3:
-            output = output[0]  # shape: (56, N)
-
-        if output.shape[0] != 56:
-            # Try transposing if needed
-            if output.shape[1] == 56:
-                output = output.T
-            else:
-                logger.debug(f"Unexpected pose model output shape: {output.shape}")
-                return None
-
-        num_proposals = output.shape[1]
-
-        if num_proposals == 0:
-            return None
-
-        # Extract confidences (index 4)
-        confidences = output[4, :]
-
-        # Find highest confidence detection
-        best_idx = int(np.argmax(confidences))
-        best_conf = confidences[best_idx]
-
-        if best_conf < 0.25:
-            return None
-
-        # Extract keypoints (indices 5 to 55, i.e., 17 * 3 = 51 values)
-        kp_data = output[5:, best_idx]  # shape: (51,)
+    ) -> list[tuple[float, float, float]]:
+        """Extract 17 keypoints for a single detection."""
+        kp_data = output[5:, det_idx]  # shape: (51,)
 
         keypoints = []
         for i in range(17):
@@ -266,3 +249,71 @@ class PoseEstimator:
             keypoints.append((float(x), float(y), float(kp_conf)))
 
         return keypoints
+
+    def _postprocess_all(
+        self,
+        outputs: list[np.ndarray],
+        orig_w: int,
+        orig_h: int,
+        scale: float,
+        pad_x: float,
+        pad_y: float,
+        min_det_conf: float = 0.25,
+    ) -> list[list[tuple[float, float, float]]]:
+        """
+        Parse YOLO-Pose output to extract keypoints for ALL valid detections.
+
+        YOLO-Pose output shape: (1, 56, N) where N is number of proposals.
+        Layout per proposal: [x_center, y_center, w, h, conf, kp0_x, kp0_y, kp0_conf, ..., kp16_x, kp16_y, kp16_conf]
+        Total = 4 (box) + 1 (conf) + 17 * 3 (keypoints) = 56
+        """
+        output = outputs[0]  # shape: (1, 56, N)
+
+        if output.ndim == 3:
+            output = output[0]  # shape: (56, N)
+
+        if output.shape[0] != 56:
+            # Try transposing if needed
+            if output.shape[1] == 56:
+                output = output.T
+            else:
+                logger.debug(f"Unexpected pose model output shape: {output.shape}")
+                return []
+
+        num_proposals = output.shape[1]
+
+        if num_proposals == 0:
+            return []
+
+        # Extract confidences (index 4)
+        confidences = output[4, :]
+
+        # Get all detections above threshold, sorted by confidence (highest first)
+        valid_indices = np.where(confidences >= min_det_conf)[0]
+        if len(valid_indices) == 0:
+            return []
+
+        # Sort by confidence descending
+        sorted_indices = valid_indices[np.argsort(confidences[valid_indices])[::-1]]
+
+        # Simple NMS: skip detections whose center is too close to an already-accepted one
+        accepted = []
+        accepted_centers = []
+        nms_dist = min(orig_w, orig_h) * 0.1  # 10% of frame size
+
+        for idx in sorted_indices:
+            cx = float(output[0, idx] - pad_x) / scale
+            cy = float(output[1, idx] - pad_y) / scale
+
+            too_close = False
+            for ax, ay in accepted_centers:
+                if abs(cx - ax) < nms_dist and abs(cy - ay) < nms_dist:
+                    too_close = True
+                    break
+
+            if not too_close:
+                kps = self._extract_keypoints(output, int(idx), orig_w, orig_h, scale, pad_x, pad_y)
+                accepted.append(kps)
+                accepted_centers.append((cx, cy))
+
+        return accepted
