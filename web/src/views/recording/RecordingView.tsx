@@ -52,7 +52,9 @@ import MobileReviewSettingsDrawer from "@/components/overlay/MobileReviewSetting
 import Logo from "@/components/Logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FaVideo } from "react-icons/fa";
+import { GiBone } from "react-icons/gi";
 import { VideoResolutionType } from "@/types/live";
+import RecordingPoseOverlay from "@/components/overlay/RecordingPoseOverlay";
 import {
   ASPECT_VERTICAL_LAYOUT,
   ASPECT_WIDE_LAYOUT,
@@ -205,6 +207,10 @@ export function RecordingView({
 
   const [debugReplayMode, setDebugReplayMode] = useState<ExportMode>("none");
   const [debugReplayRange, setDebugReplayRange] = useState<TimeRange>();
+
+  // pose overlay
+  const [showPoseOverlay, setShowPoseOverlay] = useState(false);
+  const videoContainerRef = useRef<HTMLDivElement | null>(null);
 
   // move to next clip
 
@@ -591,6 +597,22 @@ export function RecordingView({
                 </div>
               )}
             </Button>
+            <Button
+              className={cn(
+                "flex items-center gap-2.5 rounded-lg",
+                showPoseOverlay && "bg-selected",
+              )}
+              aria-label="Toggle pose overlay"
+              size="sm"
+              onClick={() => setShowPoseOverlay(!showPoseOverlay)}
+            >
+              <GiBone className={cn("size-5", showPoseOverlay ? "text-white" : "text-secondary-foreground")} />
+              {isDesktop && (
+                <div className={showPoseOverlay ? "text-white" : "text-primary"}>
+                  Pose
+                </div>
+              )}
+            </Button>
           </div>
           <div className="flex items-center justify-end gap-2">
             <MobileCameraDrawer
@@ -799,6 +821,7 @@ export function RecordingView({
                   aspectRatio: getCameraAspect(mainCamera),
                 }}
               >
+              <div ref={videoContainerRef} className="relative size-full">
                 {(isDesktop || isTablet) && (
                   <GenAISummaryDialog
                     review={activeReviewItem}
@@ -840,6 +863,15 @@ export function RecordingView({
                   toggleFullscreen={toggleFullscreen}
                   containerRef={mainLayoutRef}
                 />
+                {showPoseOverlay && (
+                  <RecordingPoseOverlay
+                    cameraName={mainCamera}
+                    containerRef={videoContainerRef}
+                    enabled={showPoseOverlay}
+                    currentTime={currentTime}
+                  />
+                )}
+              </div>
               </div>
               {isDesktop && effectiveCameras.length > 1 && (
                 <div
