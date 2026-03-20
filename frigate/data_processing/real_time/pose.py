@@ -72,19 +72,22 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         self.metrics.pose_fps.value = self.poses_per_second.eps()
         camera = obj_data["camera"]
 
+        cam_pose_enabled = self.config.cameras[camera].pose_detection.enabled if camera in self.config.cameras else False
+
+        logger.info(
+            f"Pose process_frame: camera={camera}, label={obj_data.get('label')}, "
+            f"model_ready={self.model_ready}, cam_enabled={cam_pose_enabled}"
+        )
+
         if not self.model_ready:
             return
 
-        if not self.config.cameras[camera].pose_detection.enabled:
+        if not cam_pose_enabled:
             return
 
         start = datetime.datetime.now().timestamp()
         obj_id = obj_data["id"]
         obj_label = obj_data.get("label", "unknown")
-
-        logger.info(
-            f"Pose process_frame called: camera={camera}, id={obj_id}, label={obj_label}, score={obj_data.get('score', 0):.2f}"
-        )
 
         # Only process person objects
         if obj_label != "person":
