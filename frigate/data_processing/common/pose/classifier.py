@@ -75,7 +75,8 @@ def classify_pose(
         return None
 
     all_poses = enabled_poses or [
-        "hands_up", "waving", "lying_down", "sitting", "crouching", "standing", "pointing"
+        "hands_up", "t_pose", "waving", "left_hand_up", "right_hand_up",
+        "lying_down", "sitting", "crouching", "standing", "pointing",
     ]
 
     # Count valid keypoints for overall confidence
@@ -102,7 +103,10 @@ def _check_pose(
     """Check if keypoints match a specific pose."""
     checkers = {
         "hands_up": _check_hands_up,
+        "t_pose": _check_t_pose,
         "waving": _check_waving,
+        "left_hand_up": _check_left_hand_up,
+        "right_hand_up": _check_right_hand_up,
         "lying_down": _check_lying_down,
         "sitting": _check_sitting,
         "crouching": _check_crouching,
@@ -135,6 +139,30 @@ def _check_hands_up(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
     return None
 
 
+def _check_t_pose(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
+    """Both arms extended horizontally — T-pose."""
+    needed = [LEFT_WRIST, RIGHT_WRIST, LEFT_ELBOW, RIGHT_ELBOW, LEFT_SHOULDER, RIGHT_SHOULDER]
+    if not all(_kp_valid(kps, i, min_conf) for i in needed):
+        return None
+
+    # Both arms must be extended (shoulder-elbow-wrist angle > 150)
+    left_arm_angle = _angle(kps[LEFT_SHOULDER], kps[LEFT_ELBOW], kps[LEFT_WRIST])
+    right_arm_angle = _angle(kps[RIGHT_SHOULDER], kps[RIGHT_ELBOW], kps[RIGHT_WRIST])
+
+    if left_arm_angle < 150 or right_arm_angle < 150:
+        return None
+
+    # Both arms must be roughly horizontal (wrist within shoulder height tolerance)
+    for wrist_idx, shoulder_idx in [(LEFT_WRIST, LEFT_SHOULDER), (RIGHT_WRIST, RIGHT_SHOULDER)]:
+        arm_dy = abs(kps[wrist_idx][1] - kps[shoulder_idx][1])
+        arm_dx = abs(kps[wrist_idx][0] - kps[shoulder_idx][0])
+        if arm_dx == 0 or arm_dy / arm_dx > 0.5:
+            return None
+
+    conf = min(kps[LEFT_WRIST][2], kps[RIGHT_WRIST][2], kps[LEFT_ELBOW][2], kps[RIGHT_ELBOW][2])
+    return ("t_pose", conf)
+
+
 def _check_waving(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
     """One hand well above the head (nose level)."""
     if not _kp_valid(kps, NOSE, min_conf):
@@ -161,6 +189,40 @@ def _check_waving(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
                 if elbow_y < shoulder_y:
                     conf = min(kps[wrist_idx][2], kps[elbow_idx][2])
                     return ("waving", conf)
+
+    return None
+
+
+def _check_left_hand_up(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
+    """Left wrist above left shoulder (but not both hands up)."""
+    if not all(_kp_valid(kps, i, min_conf) for i in [LEFT_WRIST, LEFT_SHOULDER]):
+        return None
+
+    if kps[LEFT_WRIST][1] < kps[LEFT_SHOULDER][1]:
+        # Make sure RIGHT hand is NOT also up (that would be hands_up)
+        if _kp_valid(kps, RIGHT_WRIST, min_conf) and _kp_valid(kps, RIGHT_SHOULDER, min_conf):
+            if kps[RIGHT_WRIST][1] < kps[RIGHT_SHOULDER][1]:
+                return None  # Both hands up — handled by hands_up
+
+        conf = min(kps[LEFT_WRIST][2], kps[LEFT_SHOULDER][2])
+        return ("left_hand_up", conf)
+
+    return None
+
+
+def _check_right_hand_up(kps, min_conf, avg_conf) -> Optional[tuple[str, float]]:
+    """Right wrist above right shoulder (but not both hands up)."""
+    if not all(_kp_valid(kps, i, min_conf) for i in [RIGHT_WRIST, RIGHT_SHOULDER]):
+        return None
+
+    if kps[RIGHT_WRIST][1] < kps[RIGHT_SHOULDER][1]:
+        # Make sure LEFT hand is NOT also up (that would be hands_up)
+        if _kp_valid(kps, LEFT_WRIST, min_conf) and _kp_valid(kps, LEFT_SHOULDER, min_conf):
+            if kps[LEFT_WRIST][1] < kps[LEFT_SHOULDER][1]:
+                return None  # Both hands up — handled by hands_up
+
+        conf = min(kps[RIGHT_WRIST][2], kps[RIGHT_SHOULDER][2])
+        return ("right_hand_up", conf)
 
     return None
 

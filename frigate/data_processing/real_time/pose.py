@@ -82,7 +82,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         if not cam_pose_enabled and self.config.pose_detection.enabled:
             cam_pose_enabled = True
 
-        logger.info(
+        logger.debug(
             f"Pose process_frame: camera={camera}, label={obj_data.get('label')}, "
             f"model_ready={self.model_ready}, cam_enabled={cam_pose_enabled}"
         )
@@ -103,7 +103,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
 
         # Don't overwrite sub_label for objects that already have a non-pose sub_label
         if obj_data.get("sub_label") and obj_id not in self.person_pose_history:
-            logger.info(
+            logger.debug(
                 f"Skipping pose for {obj_id}: existing sub_label={obj_data.get('sub_label')}"
             )
             return
@@ -114,7 +114,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         # Check person score against threshold
         score = obj_data.get("score", 0.0)
         if score < self.pose_config.min_score:
-            logger.info(
+            logger.debug(
                 f"Skipping pose for {obj_id}: score {score:.2f} < min_score {self.pose_config.min_score}"
             )
             return
@@ -122,14 +122,14 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         # Get person bounding box
         person_box = obj_data.get("box")
         if not person_box:
-            logger.info(f"Skipping pose for {obj_id}: no bounding box")
+            logger.debug(f"Skipping pose for {obj_id}: no bounding box")
             return
 
         # Check minimum area
         min_area = self.config.cameras[camera].pose_detection.min_area
         person_area = area(person_box)
         if person_area < min_area:
-            logger.info(
+            logger.debug(
                 f"Skipping pose for {obj_id}: area {person_area} < min_area {min_area}"
             )
             return
@@ -158,16 +158,16 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         person_crop = rgb[top:bottom, left:right]
 
         if person_crop.size == 0 or person_crop.shape[0] < MIN_CROP_PIXELS or person_crop.shape[1] < MIN_CROP_PIXELS:
-            logger.info(f"Skipping pose for {obj_id}: crop too small ({person_crop.shape})")
+            logger.debug(f"Skipping pose for {obj_id}: crop too small ({person_crop.shape})")
             return
 
-        logger.info(f"Running pose estimation for {obj_id}: crop={person_crop.shape}, box={person_box}")
+        logger.debug(f"Running pose estimation for {obj_id}: crop={person_crop.shape}, box={person_box}")
 
         # Run pose estimation
         keypoints = self.estimator.estimate(person_crop)
 
         if not keypoints:
-            logger.info(f"Pose estimation returned no keypoints for {obj_id}")
+            logger.debug(f"Pose estimation returned no keypoints for {obj_id}")
             self.__update_metrics(datetime.datetime.now().timestamp() - start)
             return
 
@@ -197,7 +197,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         if result:
             pose_name, pose_conf = result
 
-        logger.info(
+        logger.debug(
             f"Pose detected for {obj_id}: pose={pose_name}, conf={pose_conf:.2f}, kps={len(norm_keypoints)}"
         )
 
