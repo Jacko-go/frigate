@@ -95,45 +95,41 @@ class PoseEstimator:
             return False
 
     def _download_and_export(self, model_name: str, cache_dir: str) -> Optional[str]:
-        """Download a YOLO11 pose model and export to ONNX."""
+        """Download a pre-exported YOLO11 pose ONNX model from GitHub."""
         try:
-            from ultralytics import YOLO
+            import urllib.request
 
-            # Map ONNX name back to pt name
-            pt_name = model_name.replace(".onnx", ".pt")
             pose_cache = os.path.join(cache_dir, "pose")
             os.makedirs(pose_cache, exist_ok=True)
-
             onnx_path = os.path.join(pose_cache, model_name)
+
+            # Ultralytics publishes ONNX models on GitHub releases
+            pt_name = model_name.replace(".onnx", "")
+            url = f"https://github.com/ultralytics/assets/releases/download/v8.3.0/{pt_name}.onnx"
 
             logger.info(
                 f"Pose model {model_name} not found locally. "
-                f"Downloading and exporting to ONNX (this may take a minute)..."
+                f"Downloading from {url} ..."
             )
 
-            # YOLO auto-downloads the .pt from Ultralytics hub
-            model = YOLO(pt_name)
-            export_path = model.export(format="onnx", imgsz=640)
+            urllib.request.urlretrieve(url, onnx_path)
 
-            # Move exported file to our cache dir
-            if export_path and os.path.exists(export_path):
-                if str(export_path) != onnx_path:
-                    import shutil
-                    shutil.move(str(export_path), onnx_path)
-                logger.info(f"Pose model exported and cached: {onnx_path}")
+            if os.path.exists(onnx_path) and os.path.getsize(onnx_path) > 1_000_000:
+                logger.info(f"Pose model downloaded and cached: {onnx_path}")
                 return onnx_path
             else:
-                logger.error("ONNX export succeeded but output file not found.")
+                # File too small — likely a 404 HTML page
+                logger.error(
+                    f"Downloaded file is too small, likely invalid. "
+                    f"Try manually exporting with: "
+                    f"python -c \"from ultralytics import YOLO; YOLO('{pt_name}.pt').export(format='onnx')\""
+                )
+                if os.path.exists(onnx_path):
+                    os.remove(onnx_path)
                 return None
 
-        except ImportError:
-            logger.error(
-                f"Ultralytics is not installed. Cannot auto-download {model_name}. "
-                f"Install with: pip install ultralytics, or manually place {model_name} in /models/"
-            )
-            return None
         except Exception as e:
-            logger.error(f"Failed to download/export pose model {model_name}: {e}")
+            logger.error(f"Failed to download pose model {model_name}: {e}")
             return None
 
     def estimate(
