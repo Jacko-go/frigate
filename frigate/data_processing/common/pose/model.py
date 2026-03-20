@@ -59,10 +59,23 @@ class PoseEstimator:
                 return False
 
             providers = ["CPUExecutionProvider"]
-            if self.device and self.device.upper() == "GPU":
-                providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            elif self.device:
-                providers = [self.device, "CPUExecutionProvider"]
+            if self.device:
+                # Explicit device override
+                if self.device.upper() == "GPU":
+                    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+                else:
+                    providers = [self.device, "CPUExecutionProvider"]
+            else:
+                # Auto-detect best available provider
+                available = ort.get_available_providers()
+                if "OpenVINOExecutionProvider" in available:
+                    providers = ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
+                    logger.info("Pose: using OpenVINO acceleration")
+                elif "CUDAExecutionProvider" in available:
+                    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+                    logger.info("Pose: using CUDA acceleration")
+                else:
+                    logger.info("Pose: using CPU (no GPU provider available)")
 
             self.session = ort.InferenceSession(model_path, providers=providers)
             self.input_name = self.session.get_inputs()[0].name
