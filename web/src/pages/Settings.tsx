@@ -137,6 +137,7 @@ const allSettingsViews = [
   "integrationFaceRecognition",
   "integrationLpr",
   "integrationObjectClassification",
+  "integrationPoseDetection",
   "integrationAudioTranscription",
   "cameraDetect",
   "cameraFfmpeg",
@@ -278,6 +279,10 @@ const IntegrationAudioTranscriptionSettingsPage = createSectionPage(
   "audio_transcription",
   "global",
 );
+const IntegrationPoseDetectionSettingsPage = createSectionPage(
+  "pose_detection",
+  "global",
+);
 
 const CameraDetectSettingsPage = createSectionPage("detect", "camera");
 const CameraFfmpegSettingsPage = createSectionPage("ffmpeg", "camera");
@@ -403,6 +408,10 @@ const settingsGroups = [
       {
         key: "integrationObjectClassification",
         component: IntegrationObjectClassificationSettingsPage,
+      },
+      {
+        key: "integrationPoseDetection",
+        component: IntegrationPoseDetectionSettingsPage,
       },
       { key: "triggers", component: TriggerView },
       {
@@ -558,6 +567,7 @@ const ENRICHMENTS_SECTION_MAPPING: Record<string, SettingsType> = {
   face_recognition: "integrationFaceRecognition",
   lpr: "integrationLpr",
   classification: "integrationObjectClassification",
+  pose_detection: "integrationPoseDetection",
   audio_transcription: "integrationAudioTranscription",
 };
 

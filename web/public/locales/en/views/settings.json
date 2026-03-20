@@ -60,6 +60,7 @@
     "integrationFaceRecognition": "Face recognition",
     "integrationLpr": "License plate recognition",
     "integrationObjectClassification": "Object classification",
+    "integrationPoseDetection": "Pose detection",
     "integrationAudioTranscription": "Audio transcription",
     "cameraDetect": "Object detection",
     "cameraFfmpeg": "FFmpeg",
