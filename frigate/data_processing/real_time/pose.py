@@ -108,11 +108,8 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             )
             return
 
-        # Limit attempts per object
+        # Limit classification attempts per object (overlay still works)
         attempt_count = self.person_attempt_count.get(obj_id, 0)
-        if attempt_count >= MAX_POSE_ATTEMPTS:
-            logger.info(f"Skipping pose for {obj_id}: max attempts ({MAX_POSE_ATTEMPTS}) reached")
-            return
 
         # Check person score against threshold
         score = obj_data.get("score", 0.0)
@@ -146,11 +143,17 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         # After YUV conversion the height is 2/3 of the YUV buffer
         rgb_h, rgb_w = rgb.shape[:2]
 
-        # Clamp box to frame bounds
-        left = max(0, left)
-        top = max(0, top)
-        right = min(rgb_w, right)
-        bottom = min(rgb_h, bottom)
+        # Expand crop by 20% on each side for full body capture
+        box_w = right - left
+        box_h = bottom - top
+        pad_x = int(box_w * 0.2)
+        pad_y = int(box_h * 0.2)
+
+        # Clamp expanded box to frame bounds
+        left = max(0, left - pad_x)
+        top = max(0, top - pad_y)
+        right = min(rgb_w, right + pad_x)
+        bottom = min(rgb_h, bottom + pad_y)
 
         person_crop = rgb[top:bottom, left:right]
 
@@ -165,57 +168,16 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
 
         if not keypoints:
             logger.info(f"Pose estimation returned no keypoints for {obj_id}")
-            self.person_attempt_count[obj_id] = attempt_count + 1
             self.__update_metrics(datetime.datetime.now().timestamp() - start)
             return
 
-        # Classify pose from keypoints
-        result = classify_pose(
-            keypoints,
-            min_conf=self.pose_config.min_keypoint_score,
-            enabled_poses=self.pose_config.poses,
-        )
-
-        self.person_attempt_count[obj_id] = attempt_count + 1
-
-        if not result:
-            self.__update_metrics(datetime.datetime.now().timestamp() - start)
-            return
-
-        pose_name, pose_conf = result
-
-        # Check cooldown
-        now = datetime.datetime.now().timestamp()
-        if obj_id in self.person_pose_cooldown:
-            last_time = self.person_pose_cooldown[obj_id].get(pose_name, 0)
-            if now - last_time < self.pose_config.cooldown:
-                self.__update_metrics(now - start)
-                return
-
-        # Store pose result
-        if obj_id not in self.person_pose_history:
-            self.person_pose_history[obj_id] = []
-
-        self.person_pose_history[obj_id].append((pose_name, pose_conf))
-
-        # Update cooldown
-        if obj_id not in self.person_pose_cooldown:
-            self.person_pose_cooldown[obj_id] = {}
-        self.person_pose_cooldown[obj_id][pose_name] = now
-
-        logger.debug(
-            f"Detected pose '{pose_name}' (conf={pose_conf:.2f}) for {obj_id} on {camera}"
-        )
-
-        # Publish tracked object update for UI
-        # Normalize keypoints to full frame (0-1 range)
+        # Always normalize and send keypoints for skeleton overlay
         norm_keypoints = []
         for kp in keypoints:
             nx = (left + kp[0]) / rgb_w
             ny = (top + kp[1]) / rgb_h
             norm_keypoints.append({"x": round(nx, 4), "y": round(ny, 4), "confidence": round(kp[2], 3)})
 
-        # Normalize bounding box to 0-1 range [y1, x1, y2, x2]
         norm_box = [
             round(top / rgb_h, 4),
             round(left / rgb_w, 4),
@@ -223,6 +185,23 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             round(right / rgb_w, 4),
         ]
 
+        # Classify pose from keypoints (optional for overlay)
+        result = classify_pose(
+            keypoints,
+            min_conf=self.pose_config.min_keypoint_score,
+            enabled_poses=self.pose_config.poses,
+        )
+
+        pose_name = "unknown"
+        pose_conf = 0.0
+        if result:
+            pose_name, pose_conf = result
+
+        logger.info(
+            f"Pose detected for {obj_id}: pose={pose_name}, conf={pose_conf:.2f}, kps={len(norm_keypoints)}"
+        )
+
+        # Send tracked object update for UI skeleton overlay (always)
         self.requestor.send_data(
             "tracked_object_update",
             json.dumps(
@@ -239,25 +218,40 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             ),
         )
 
-        # Publish sub_label update (pose as sub_label on person events)
-        self.sub_label_publisher.publish(
-            (obj_id, pose_name, pose_conf),
-            EventMetadataTypeEnum.sub_label.value,
-        )
+        # Only publish sub_label and MQTT when classification succeeded
+        if result:
+            now = datetime.datetime.now().timestamp()
+            if obj_id in self.person_pose_cooldown:
+                last_time = self.person_pose_cooldown[obj_id].get(pose_name, 0)
+                if now - last_time < self.pose_config.cooldown:
+                    self.__update_metrics(now - start)
+                    return
 
-        # Publish dedicated pose MQTT topic
-        self.requestor.send_data(
-            f"{camera}/pose",
-            json.dumps(
-                {
-                    "person_id": obj_id,
-                    "pose": pose_name,
-                    "score": round(pose_conf, 3),
-                    "camera": camera,
-                    "timestamp": start,
-                }
-            ),
-        )
+            if obj_id not in self.person_pose_history:
+                self.person_pose_history[obj_id] = []
+            self.person_pose_history[obj_id].append((pose_name, pose_conf))
+
+            if obj_id not in self.person_pose_cooldown:
+                self.person_pose_cooldown[obj_id] = {}
+            self.person_pose_cooldown[obj_id][pose_name] = now
+
+            self.sub_label_publisher.publish(
+                (obj_id, pose_name, pose_conf),
+                EventMetadataTypeEnum.sub_label.value,
+            )
+
+            self.requestor.send_data(
+                f"{camera}/pose",
+                json.dumps(
+                    {
+                        "person_id": obj_id,
+                        "pose": pose_name,
+                        "score": round(pose_conf, 3),
+                        "camera": camera,
+                        "timestamp": start,
+                    }
+                ),
+            )
 
         self.__update_metrics(datetime.datetime.now().timestamp() - start)
 
