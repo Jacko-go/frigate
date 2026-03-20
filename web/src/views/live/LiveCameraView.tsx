@@ -79,6 +79,7 @@ import {
   LuX,
 } from "react-icons/lu";
 import {
+  MdAccessibility,
   MdClosedCaption,
   MdClosedCaptionDisabled,
   MdNoPhotography,
@@ -112,6 +113,7 @@ import { useTranslation } from "react-i18next";
 import { useDocDomain } from "@/hooks/use-doc-domain";
 import { detectCameraAudioFeatures } from "@/utils/cameraUtil";
 import PtzControlPanel from "@/components/overlay/PtzControlPanel";
+import PoseOverlay from "@/components/overlay/PoseOverlay";
 import ObjectSettingsView from "../settings/ObjectSettingsView";
 import { useSearchEffect } from "@/hooks/use-overlay-state";
 import {
@@ -275,6 +277,7 @@ export default function LiveCameraView({
 
   const [showStats, setShowStats] = useState(false);
   const [debug, setDebug] = useState(false);
+  const [showPoseOverlay, setShowPoseOverlay] = useState(false);
 
   useSearchEffect("debug", (value: string) => {
     if (value === "true") {
@@ -616,6 +619,8 @@ export default function LiveCameraView({
               cameraEnabled={cameraEnabled}
               debug={debug}
               setDebug={setDebug}
+              showPoseOverlay={showPoseOverlay}
+              setShowPoseOverlay={setShowPoseOverlay}
             />
           </div>
         </div>
@@ -660,6 +665,11 @@ export default function LiveCameraView({
                   containerRef={containerRef}
                   setFullResolution={setFullResolution}
                   onError={handleError}
+                />
+                <PoseOverlay
+                  cameraName={camera.name}
+                  containerRef={clickOverlayRef}
+                  enabled={showPoseOverlay}
                 />
               </div>
             </TransformComponent>
@@ -726,6 +736,8 @@ type FrigateCameraFeaturesProps = {
   cameraEnabled: boolean;
   debug: boolean;
   setDebug: (debug: boolean) => void;
+  showPoseOverlay: boolean;
+  setShowPoseOverlay: (value: boolean) => void;
 };
 function FrigateCameraFeatures({
   camera,
@@ -748,6 +760,8 @@ function FrigateCameraFeatures({
   cameraEnabled,
   debug,
   setDebug,
+  showPoseOverlay,
+  setShowPoseOverlay,
 }: FrigateCameraFeaturesProps) {
   const { t } = useTranslation(["views/live", "components/dialog"]);
   const { getLocaleDocUrl } = useDocDomain();
@@ -1052,6 +1066,15 @@ function FrigateCameraFeatures({
           onClick={handleSnapshotClick}
           disabled={!cameraEnabled || debug || isSnapshotLoading}
           loading={isSnapshotLoading}
+        />
+        <CameraFeatureToggle
+          className="p-2 md:p-0"
+          variant={fullscreen ? "overlay" : "primary"}
+          Icon={MdAccessibility}
+          isActive={showPoseOverlay}
+          title={showPoseOverlay ? "Hide pose overlay" : "Show pose overlay"}
+          onClick={() => setShowPoseOverlay(!showPoseOverlay)}
+          disabled={!cameraEnabled || debug}
         />
         {!fullscreen && (
           <DropdownMenu modal={false}>

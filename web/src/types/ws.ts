@@ -72,6 +72,7 @@ export interface FrigateCameraState {
     detections: boolean;
     object_descriptions: boolean;
     review_descriptions: boolean;
+    pose_detection: boolean;
   };
   motion: boolean;
   objects: ObjectType[];
@@ -105,7 +106,8 @@ export type TrackedObjectUpdateType =
   | "description"
   | "lpr"
   | "transcription"
-  | "face";
+  | "face"
+  | "pose";
 
 export type TrackedObjectUpdateReturnType = {
   type: TrackedObjectUpdateType;

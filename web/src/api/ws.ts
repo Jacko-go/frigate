@@ -166,6 +166,7 @@ function applyCameraActivity(payload: string) {
       detections,
       object_descriptions,
       review_descriptions,
+      pose_detection,
     } = cameraConfig;
 
     applyTopicUpdate(`${name}/recordings/state`, record ? "ON" : "OFF");
@@ -201,6 +202,10 @@ function applyCameraActivity(payload: string) {
     applyTopicUpdate(
       `${name}/review_descriptions/state`,
       review_descriptions ? "ON" : "OFF",
+    );
+    applyTopicUpdate(
+      `${name}/pose_detection/state`,
+      pose_detection ? "ON" : "OFF",
     );
   }
 }
@@ -427,6 +432,20 @@ export function useZoneState(
   } = useWs(
     `${camera}/zone/${zoneName}/state`,
     `${camera}/zone/${zoneName}/set`,
+  );
+  return { payload: payload as ToggleableSetting, send };
+}
+
+export function usePoseDetectionState(camera: string): {
+  payload: ToggleableSetting;
+  send: (payload: ToggleableSetting, retain?: boolean) => void;
+} {
+  const {
+    value: { payload },
+    send,
+  } = useWs(
+    `${camera}/pose_detection/state`,
+    `${camera}/pose_detection/set`,
   );
   return { payload: payload as ToggleableSetting, send };
 }
