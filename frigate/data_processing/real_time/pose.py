@@ -3,6 +3,7 @@
 import datetime
 import json
 import logging
+from collections import Counter, deque
 from typing import Any, Optional
 
 import cv2
@@ -27,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 MAX_POSE_ATTEMPTS = 8
 MIN_CROP_PIXELS = 40  # skip tiny person crops
+SMOOTHING_WINDOW = 5  # number of recent frames for majority-vote smoothing
+SMOOTHING_THRESHOLD = 3  # min votes to accept a pose
 
 
 class PoseRealTimeProcessor(RealTimeProcessorApi):
@@ -51,6 +54,9 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         self.person_pose_history: dict[str, list[tuple[str, float]]] = {}
         self.person_pose_cooldown: dict[str, dict[str, float]] = {}
         self.person_attempt_count: dict[str, int] = {}
+
+        # Smoothing buffer: last N raw classifications per tracked object
+        self.pose_smooth_buffer: dict[str, deque] = {}
 
         self.poses_per_second = EventsPerSecond()
         self.inference_speed = InferenceSpeed(self.metrics.pose_speed)
@@ -202,13 +208,30 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             enabled_poses=cam_poses,
         )
 
-        pose_name = "unknown"
-        pose_conf = 0.0
+        raw_pose = "unknown"
+        raw_conf = 0.0
         if result:
-            pose_name, pose_conf = result
+            raw_pose, raw_conf = result
+
+        # --- Temporal smoothing via majority vote ---
+        if obj_id not in self.pose_smooth_buffer:
+            self.pose_smooth_buffer[obj_id] = deque(maxlen=SMOOTHING_WINDOW)
+
+        self.pose_smooth_buffer[obj_id].append(raw_pose)
+        counts = Counter(self.pose_smooth_buffer[obj_id])
+        top_pose, top_count = counts.most_common(1)[0]
+
+        # Only accept if it has enough votes (and isn't 'unknown')
+        if top_pose != "unknown" and top_count >= SMOOTHING_THRESHOLD:
+            pose_name = top_pose
+            pose_conf = raw_conf
+        else:
+            pose_name = "unknown"
+            pose_conf = 0.0
 
         logger.debug(
-            f"Pose detected for {obj_id}: pose={pose_name}, conf={pose_conf:.2f}, kps={len(norm_keypoints)}"
+            f"Pose for {obj_id}: raw={raw_pose}({raw_conf:.2f}), "
+            f"smoothed={pose_name}, votes={dict(counts)}"
         )
 
         # Send tracked object update for UI skeleton overlay (always)
@@ -274,6 +297,7 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         self.person_pose_history.pop(object_id, None)
         self.person_pose_cooldown.pop(object_id, None)
         self.person_attempt_count.pop(object_id, None)
+        self.pose_smooth_buffer.pop(object_id, None)
 
     def __update_metrics(self, duration: float) -> None:
         self.poses_per_second.update()
