@@ -1,5 +1,6 @@
 import Heading from "@/components/ui/heading";
 import { FrigateConfig, SearchModelSize } from "@/types/frigateConfig";
+import { Slider } from "@/components/ui/slider";
 import useSWR from "swr";
 import axios from "axios";
 import ActivityIndicator from "@/components/indicators/activity-indicator";
@@ -49,6 +50,13 @@ type EnrichmentsSettings = {
   bird: {
     enabled?: boolean;
   };
+  pose: {
+    enabled?: boolean;
+    model_size?: string;
+    min_score?: number;
+    min_pose_score?: number;
+    cooldown?: number;
+  };
 };
 
 type EnrichmentsSettingsViewProps = {
@@ -73,6 +81,7 @@ export default function EnrichmentsSettingsView({
       face: { enabled: undefined, model_size: undefined },
       lpr: { enabled: undefined },
       bird: { enabled: undefined },
+      pose: { enabled: undefined, model_size: undefined, min_score: undefined, min_pose_score: undefined, cooldown: undefined },
     });
 
   const [origSearchSettings, setOrigSearchSettings] =
@@ -81,6 +90,7 @@ export default function EnrichmentsSettingsView({
       face: { enabled: undefined, model_size: undefined },
       lpr: { enabled: undefined },
       bird: { enabled: undefined },
+      pose: { enabled: undefined, model_size: undefined, min_score: undefined, min_pose_score: undefined, cooldown: undefined },
     });
 
   useEffect(() => {
@@ -99,6 +109,13 @@ export default function EnrichmentsSettingsView({
           bird: {
             enabled: config.classification.bird.enabled,
           },
+          pose: {
+            enabled: config.pose_detection.enabled,
+            model_size: config.pose_detection.model_size,
+            min_score: config.pose_detection.min_score,
+            min_pose_score: config.pose_detection.min_pose_score,
+            cooldown: config.pose_detection.cooldown,
+          },
         });
       }
 
@@ -113,6 +130,13 @@ export default function EnrichmentsSettingsView({
         },
         lpr: { enabled: config.lpr.enabled },
         bird: { enabled: config.classification.bird.enabled },
+        pose: {
+          enabled: config.pose_detection.enabled,
+          model_size: config.pose_detection.model_size,
+          min_score: config.pose_detection.min_score,
+          min_pose_score: config.pose_detection.min_pose_score,
+          cooldown: config.pose_detection.cooldown,
+        },
       });
     }
     // we know that these deps are correct
@@ -127,6 +151,7 @@ export default function EnrichmentsSettingsView({
       face: { ...prevConfig.face, ...newConfig.face },
       lpr: { ...prevConfig.lpr, ...newConfig.lpr },
       bird: { ...prevConfig.bird, ...newConfig.bird },
+      pose: { ...prevConfig.pose, ...newConfig.pose },
     }));
     setUnsavedChanges(true);
     setChangedValue(true);
@@ -137,7 +162,7 @@ export default function EnrichmentsSettingsView({
 
     axios
       .put(
-        `config/set?semantic_search.enabled=${enrichmentsSettings.search.enabled ? "True" : "False"}&semantic_search.model_size=${enrichmentsSettings.search.model_size}&face_recognition.enabled=${enrichmentsSettings.face.enabled ? "True" : "False"}&face_recognition.model_size=${enrichmentsSettings.face.model_size}&lpr.enabled=${enrichmentsSettings.lpr.enabled ? "True" : "False"}&classification.bird.enabled=${enrichmentsSettings.bird.enabled ? "True" : "False"}`,
+        `config/set?semantic_search.enabled=${enrichmentsSettings.search.enabled ? "True" : "False"}&semantic_search.model_size=${enrichmentsSettings.search.model_size}&face_recognition.enabled=${enrichmentsSettings.face.enabled ? "True" : "False"}&face_recognition.model_size=${enrichmentsSettings.face.model_size}&lpr.enabled=${enrichmentsSettings.lpr.enabled ? "True" : "False"}&classification.bird.enabled=${enrichmentsSettings.bird.enabled ? "True" : "False"}&pose_detection.enabled=${enrichmentsSettings.pose.enabled ? "True" : "False"}&pose_detection.model_size=${enrichmentsSettings.pose.model_size}&pose_detection.min_score=${enrichmentsSettings.pose.min_score}&pose_detection.min_pose_score=${enrichmentsSettings.pose.min_pose_score}&pose_detection.cooldown=${enrichmentsSettings.pose.cooldown}`,
         { requires_restart: 0 },
       )
       .then((res) => {
@@ -581,6 +606,139 @@ export default function EnrichmentsSettingsView({
                   {t("button.enabled", { ns: "common" })}
                 </Label>
               </div>
+            </div>
+          </div>
+
+          <Separator className="my-2 flex bg-secondary" />
+
+          <Heading as="h4" className="my-2">
+            Pose Detection
+          </Heading>
+          <div className="max-w-6xl">
+            <div className="mb-5 mt-2 flex max-w-5xl flex-col gap-2 text-sm text-primary-variant">
+              <p>
+                Detect and classify human poses (waving, hands up, sitting, etc.) from tracked person objects.
+                Pose events are published via MQTT for Home Assistant automations.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex w-full max-w-lg flex-col space-y-6">
+            <div className="flex flex-row items-center">
+              <Switch
+                id="pose-enabled"
+                className="mr-3"
+                disabled={enrichmentsSettings.pose.enabled === undefined}
+                checked={enrichmentsSettings.pose.enabled === true}
+                onCheckedChange={(isChecked) => {
+                  handleEnrichmentsConfigChange({
+                    pose: { enabled: isChecked },
+                  });
+                }}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="pose-enabled">
+                  {t("button.enabled", { ns: "common" })}
+                </Label>
+              </div>
+            </div>
+
+            <div className="space-y-0.5">
+              <div className="text-md">Model Size</div>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>Small (yolo11n-pose) is faster, Large (yolo11s-pose) is more accurate.</p>
+              </div>
+            </div>
+            <Select
+              value={enrichmentsSettings.pose.model_size}
+              onValueChange={(value) =>
+                handleEnrichmentsConfigChange({
+                  pose: { model_size: value },
+                })
+              }
+            >
+              <SelectTrigger className="w-20">
+                {enrichmentsSettings.pose.model_size === "small" ? "Small" : "Large"}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {["small", "large"].map((size) => (
+                    <SelectItem
+                      key={size}
+                      className="cursor-pointer"
+                      value={size}
+                    >
+                      {size === "small" ? "Small" : "Large"}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            <div className="space-y-3">
+              <div className="space-y-0.5">
+                <div className="text-md">
+                  Min Person Score: {enrichmentsSettings.pose.min_score?.toFixed(2)}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Minimum person detection confidence before running pose estimation.
+                </div>
+              </div>
+              <Slider
+                value={[enrichmentsSettings.pose.min_score ?? 0.5]}
+                min={0.1}
+                max={1.0}
+                step={0.05}
+                onValueChange={([val]) =>
+                  handleEnrichmentsConfigChange({
+                    pose: { min_score: val },
+                  })
+                }
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-0.5">
+                <div className="text-md">
+                  Min Pose Score: {enrichmentsSettings.pose.min_pose_score?.toFixed(2)}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Minimum pose classification confidence required to register the pose and publish to MQTT/HA.
+                </div>
+              </div>
+              <Slider
+                value={[enrichmentsSettings.pose.min_pose_score ?? 0.7]}
+                min={0.1}
+                max={1.0}
+                step={0.05}
+                onValueChange={([val]) =>
+                  handleEnrichmentsConfigChange({
+                    pose: { min_pose_score: val },
+                  })
+                }
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-0.5">
+                <div className="text-md">
+                  Cooldown: {enrichmentsSettings.pose.cooldown}s
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Minimum seconds between publishing the same pose for the same tracked person.
+                </div>
+              </div>
+              <Slider
+                value={[enrichmentsSettings.pose.cooldown ?? 5]}
+                min={0}
+                max={30}
+                step={1}
+                onValueChange={([val]) =>
+                  handleEnrichmentsConfigChange({
+                    pose: { cooldown: val },
+                  })
+                }
+              />
             </div>
           </div>
 

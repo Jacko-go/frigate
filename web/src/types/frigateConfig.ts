@@ -28,6 +28,18 @@ export interface FaceRecognitionConfig {
   recognition_threshold: number;
 }
 
+export interface PoseDetectionConfig {
+  enabled: boolean;
+  model_size: string;
+  min_score: number;
+  min_keypoint_score: number;
+  min_pose_score: number;
+  cooldown: number;
+  poses: string[];
+  device: string | null;
+  min_area: number;
+}
+
 export type SearchModel = "jinav1" | "jinav2";
 export type SearchModelSize = "small" | "large";
 
@@ -465,6 +477,8 @@ export interface FrigateConfig {
   environment_vars: Record<string, unknown>;
 
   face_recognition: FaceRecognitionConfig;
+
+  pose_detection: PoseDetectionConfig;
 
   ffmpeg: {
     global_args: string[];
