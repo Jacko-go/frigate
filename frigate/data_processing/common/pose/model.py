@@ -28,9 +28,14 @@ class PoseEstimator:
         try:
             import onnxruntime as ort
 
-            model_name = (
-                "yolo11n-pose.onnx" if self.model_size == "small" else "yolo11s-pose.onnx"
-            )
+            model_map = {
+                "nano": "yolo11n-pose.onnx",
+                "small": "yolo11s-pose.onnx",
+                "medium": "yolo11m-pose.onnx",
+                "large": "yolo11l-pose.onnx",
+                "xlarge": "yolo11x-pose.onnx",
+            }
+            model_name = model_map.get(self.model_size, "yolo11n-pose.onnx")
 
             # Check multiple locations for the model
             search_paths = [

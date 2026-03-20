@@ -462,9 +462,9 @@ class PoseDetectionConfig(FrigateBaseModel):
         le=1.0,
     )
     model_size: str = Field(
-        default="small",
+        default="nano",
         title="Model size",
-        description="Model size for pose estimation: 'small' (yolo11n-pose) or 'large' (yolo11s-pose).",
+        description="Model size for pose estimation: 'nano' (yolo11n-pose), 'small' (yolo11s-pose), 'medium' (yolo11m-pose), 'large' (yolo11l-pose), or 'xlarge' (yolo11x-pose).",
     )
     poses: List[str] = Field(
         default=["hands_up", "t_pose", "waving", "left_hand_up", "right_hand_up", "sitting", "standing", "lying_down", "crouching", "pointing"],

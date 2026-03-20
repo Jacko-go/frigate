@@ -646,7 +646,7 @@ export default function EnrichmentsSettingsView({
             <div className="space-y-0.5">
               <div className="text-md">Model Size</div>
               <div className="space-y-1 text-sm text-muted-foreground">
-                <p>Small (yolo11n-pose) is faster, Large (yolo11s-pose) is more accurate.</p>
+                <p>Nano is fastest, XLarge is most accurate. Larger models use more CPU/RAM.</p>
               </div>
             </div>
             <Select
@@ -657,18 +657,24 @@ export default function EnrichmentsSettingsView({
                 })
               }
             >
-              <SelectTrigger className="w-20">
-                {enrichmentsSettings.pose.model_size === "small" ? "Small" : "Large"}
+              <SelectTrigger className="w-28">
+                {{"nano": "Nano", "small": "Small", "medium": "Medium", "large": "Large", "xlarge": "XLarge"}[enrichmentsSettings.pose.model_size ?? "nano"] ?? "Nano"}
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {["small", "large"].map((size) => (
+                  {[
+                    { value: "nano", label: "Nano (yolo11n)" },
+                    { value: "small", label: "Small (yolo11s)" },
+                    { value: "medium", label: "Medium (yolo11m)" },
+                    { value: "large", label: "Large (yolo11l)" },
+                    { value: "xlarge", label: "XLarge (yolo11x)" },
+                  ].map((opt) => (
                     <SelectItem
-                      key={size}
+                      key={opt.value}
                       className="cursor-pointer"
-                      value={size}
+                      value={opt.value}
                     >
-                      {size === "small" ? "Small" : "Large"}
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectGroup>
