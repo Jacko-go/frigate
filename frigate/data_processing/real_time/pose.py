@@ -256,6 +256,10 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             if obj_id in self.person_pose_cooldown:
                 last_time = self.person_pose_cooldown[obj_id].get(pose_name, 0)
                 if now - last_time < self.pose_config.cooldown:
+                    logger.debug(
+                        f"Pose {pose_name} for {obj_id} blocked by cooldown "
+                        f"({now - last_time:.1f}s < {self.pose_config.cooldown}s)"
+                    )
                     self.__update_metrics(now - start)
                     return
 
@@ -266,6 +270,10 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             if obj_id not in self.person_pose_cooldown:
                 self.person_pose_cooldown[obj_id] = {}
             self.person_pose_cooldown[obj_id][pose_name] = now
+
+            logger.info(
+                f"POSE DETECTED: {pose_name} ({pose_conf:.2f}) for {obj_id} on {camera} — publishing sub_label"
+            )
 
             self.sub_label_publisher.publish(
                 (obj_id, pose_name, pose_conf),
@@ -283,6 +291,11 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
                         "timestamp": start,
                     }
                 ),
+            )
+        elif pose_name != "unknown":
+            logger.debug(
+                f"Pose {pose_name} ({pose_conf:.2f}) for {obj_id} below min_pose_score "
+                f"({self.pose_config.min_pose_score}) — NOT publishing"
             )
 
         self.__update_metrics(datetime.datetime.now().timestamp() - start)
