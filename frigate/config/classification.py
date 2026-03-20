@@ -477,6 +477,13 @@ class PoseDetectionConfig(FrigateBaseModel):
         description="Minimum time in seconds between publishing the same pose for the same tracked person.",
         ge=0,
     )
+    min_pose_score: float = Field(
+        default=0.7,
+        title="Minimum pose score",
+        description="Minimum classification confidence required to register and publish a pose event.",
+        gt=0.0,
+        le=1.0,
+    )
     device: Optional[str] = Field(
         default=None,
         title="Device",

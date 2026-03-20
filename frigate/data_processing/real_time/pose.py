@@ -218,8 +218,8 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
             ),
         )
 
-        # Only publish sub_label and MQTT when classification succeeded
-        if result:
+        # Only publish sub_label and MQTT when classification meets min_pose_score
+        if result and pose_conf >= self.pose_config.min_pose_score:
             now = datetime.datetime.now().timestamp()
             if obj_id in self.person_pose_cooldown:
                 last_time = self.person_pose_cooldown[obj_id].get(pose_name, 0)
