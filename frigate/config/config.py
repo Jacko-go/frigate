@@ -59,6 +59,7 @@ from .classification import (
     ClassificationConfig,
     FaceRecognitionConfig,
     LicensePlateRecognitionConfig,
+    PoseDetectionConfig,
     SemanticSearchConfig,
     SemanticSearchModelEnum,
 )
@@ -527,6 +528,11 @@ class FrigateConfig(FrigateBaseModel):
         title="Face recognition",
         description="Settings for face detection and recognition for all cameras; can be overridden per-camera.",
     )
+    pose_detection: PoseDetectionConfig = Field(
+        default_factory=PoseDetectionConfig,
+        title="Pose detection",
+        description="Settings for human pose detection and classification for all cameras; can be overridden per-camera.",
+    )
     lpr: LicensePlateRecognitionConfig = Field(
         default_factory=LicensePlateRecognitionConfig,
         title="License Plate Recognition",
@@ -677,6 +683,7 @@ class FrigateConfig(FrigateBaseModel):
             # only populate some fields down to the camera level for specific keys
             allowed_fields_map = {
                 "face_recognition": ["enabled", "min_area"],
+                "pose_detection": ["enabled", "min_area"],
                 "lpr": ["enabled", "expire_time", "min_area", "enhancement"],
                 "audio_transcription": ["enabled", "live_enabled"],
             }

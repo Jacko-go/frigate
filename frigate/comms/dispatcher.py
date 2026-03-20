@@ -89,6 +89,7 @@ class Dispatcher:
             "motion_mask": self._on_motion_mask_command,
             "object_mask": self._on_object_mask_command,
             "zone": self._on_zone_command,
+            "pose_detection": self._on_pose_detection_command,
         }
         self._global_settings_handlers: dict[str, Callable] = {
             "notifications": self._on_global_notification_command,
@@ -1060,3 +1061,19 @@ class Dispatcher:
             camera_config.zones,
         )
         self.publish(f"{camera_name}/zone/{zone_name}/state", payload, retain=True)
+
+    def _on_pose_detection_command(self, camera_name: str, payload: str) -> None:
+        """Callback for pose_detection topic."""
+        pose_settings = self.config.cameras[camera_name].pose_detection
+
+        if payload == "ON":
+            if not pose_settings.enabled:
+                logger.info(f"Turning on pose detection for {camera_name}")
+                pose_settings.enabled = True
+        elif payload == "OFF":
+            if pose_settings.enabled:
+                logger.info(f"Turning off pose detection for {camera_name}")
+                pose_settings.enabled = False
+
+        self.publish(f"{camera_name}/pose_detection/state", payload, retain=True)
+

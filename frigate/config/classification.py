@@ -9,7 +9,9 @@ __all__ = [
     "CameraFaceRecognitionConfig",
     "CameraLicensePlateRecognitionConfig",
     "CameraAudioTranscriptionConfig",
+    "CameraPoseDetectionConfig",
     "FaceRecognitionConfig",
+    "PoseDetectionConfig",
     "SemanticSearchConfig",
     "CameraSemanticSearchConfig",
     "LicensePlateRecognitionConfig",
@@ -437,3 +439,67 @@ class CameraAudioTranscriptionConfig(FrigateBaseModel):
     )
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+
+class PoseDetectionConfig(FrigateBaseModel):
+    enabled: bool = Field(
+        default=False,
+        title="Enable pose detection",
+        description="Enable or disable pose detection on tracked person objects for all cameras; can be overridden per-camera.",
+    )
+    min_score: float = Field(
+        default=0.5,
+        title="Minimum person score",
+        description="Minimum person detection confidence required before running pose estimation.",
+        gt=0.0,
+        le=1.0,
+    )
+    min_keypoint_score: float = Field(
+        default=0.3,
+        title="Minimum keypoint score",
+        description="Minimum confidence for individual keypoints to be considered valid during pose classification.",
+        gt=0.0,
+        le=1.0,
+    )
+    model_size: str = Field(
+        default="small",
+        title="Model size",
+        description="Model size for pose estimation: 'small' (yolo11n-pose) or 'large' (yolo11s-pose).",
+    )
+    poses: List[str] = Field(
+        default=["hands_up", "waving", "sitting", "standing", "lying_down", "crouching"],
+        title="Poses to detect",
+        description="List of pose labels to classify from detected keypoints. Available: hands_up, waving, sitting, standing, lying_down, crouching, pointing.",
+    )
+    cooldown: int = Field(
+        default=5,
+        title="Cooldown (seconds)",
+        description="Minimum time in seconds between publishing the same pose for the same tracked person.",
+        ge=0,
+    )
+    device: Optional[str] = Field(
+        default=None,
+        title="Device",
+        description="Override device for ONNX inference. See https://onnxruntime.ai/docs/execution-providers/ for options.",
+    )
+    min_area: int = Field(
+        default=2000,
+        title="Minimum person area",
+        description="Minimum area (pixels) of a person bounding box required to attempt pose estimation.",
+    )
+
+
+class CameraPoseDetectionConfig(FrigateBaseModel):
+    enabled: bool = Field(
+        default=False,
+        title="Enable pose detection",
+        description="Enable or disable pose detection on this camera.",
+    )
+    min_area: int = Field(
+        default=2000,
+        title="Minimum person area",
+        description="Minimum area (pixels) of a person bounding box required to attempt pose estimation.",
+    )
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+

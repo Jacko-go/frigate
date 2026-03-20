@@ -132,6 +132,11 @@ class MqttClient(Communicator):
                 "ON" if camera.review.genai.enabled_in_config else "OFF",
                 retain=True,
             )
+            self.publish(
+                f"{camera_name}/pose_detection/state",
+                "ON" if camera.pose_detection.enabled else "OFF",
+                retain=True,
+            )
 
             for mask_name, motion_mask in camera.motion.mask.items():
                 if motion_mask:
@@ -255,6 +260,7 @@ class MqttClient(Communicator):
             "review_detections",
             "object_descriptions",
             "review_descriptions",
+            "pose_detection",
         ]
 
         for name in self.config.cameras.keys():

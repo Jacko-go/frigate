@@ -22,6 +22,7 @@ from ..classification import (
     CameraAudioTranscriptionConfig,
     CameraFaceRecognitionConfig,
     CameraLicensePlateRecognitionConfig,
+    CameraPoseDetectionConfig,
     CameraSemanticSearchConfig,
 )
 from .audio import AudioConfig
@@ -112,6 +113,11 @@ class CameraConfig(FrigateBaseModel):
         default_factory=CameraLicensePlateRecognitionConfig,
         title="License Plate Recognition",
         description="License plate recognition settings including detection thresholds, formatting, and known plates.",
+    )
+    pose_detection: CameraPoseDetectionConfig = Field(
+        default_factory=CameraPoseDetectionConfig,
+        title="Pose detection",
+        description="Pose detection and classification settings for this camera.",
     )
     motion: MotionConfig = Field(
         None,

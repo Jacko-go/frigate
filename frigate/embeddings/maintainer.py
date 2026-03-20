@@ -56,6 +56,7 @@ from frigate.data_processing.real_time.face import FaceRealTimeProcessor
 from frigate.data_processing.real_time.license_plate import (
     LicensePlateRealTimeProcessor,
 )
+from frigate.data_processing.real_time.pose import PoseRealTimeProcessor
 from frigate.data_processing.types import DataProcessorMetrics, PostProcessDataEnum
 from frigate.db.sqlitevecq import SqliteVecQueueDatabase
 from frigate.events.types import EventTypeEnum, RegenerateDescriptionEnum
@@ -198,6 +199,15 @@ class EmbeddingMaintainer(threading.Thread):
                     self.metrics,
                 )
             )
+
+        if self.config.pose_detection.enabled:
+            logger.debug("Pose detection enabled, initializing PoseRealTimeProcessor")
+            self.realtime_processors.append(
+                PoseRealTimeProcessor(
+                    self.config, self.requestor, self.event_metadata_publisher, metrics
+                )
+            )
+            logger.debug("PoseRealTimeProcessor initialized successfully")
 
         # post processors
         self.post_processors: list[PostProcessorApi] = []
