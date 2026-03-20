@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import PoseOverlay from "@/components/overlay/PoseOverlay";
 import ActivityIndicator from "@/components/indicators/activity-indicator";
 import AutoUpdatingCameraImage from "@/components/camera/AutoUpdatingCameraImage";
 import { CameraConfig, FrigateConfig } from "@/types/frigateConfig";
@@ -118,9 +119,11 @@ export default function ObjectSettingsView({
   );
 
   const [debugDraw, setDebugDraw] = useState(false);
+  const [showPoseOverlay, setShowPoseOverlay] = useState(false);
 
   useEffect(() => {
     setDebugDraw(false);
+    setShowPoseOverlay(false);
   }, [selectedCamera]);
 
   const cameraConfig = useMemo(() => {
@@ -319,6 +322,31 @@ export default function ObjectSettingsView({
                     </div>
                   </>
                 )}
+                <Separator className="my-2" />
+                <div className="flex w-full flex-row items-center justify-between">
+                  <div className="mb-2 flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <Label
+                        className="mb-0 cursor-pointer text-primary smart-capitalize"
+                        htmlFor="pose_skeleton"
+                      >
+                        Pose Skeleton
+                      </Label>
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Overlay detected pose keypoints and skeleton on the camera view
+                    </div>
+                  </div>
+                  <Switch
+                    key={`pose-${selectedCamera}`}
+                    className="ml-1"
+                    id="pose_skeleton"
+                    checked={showPoseOverlay}
+                    onCheckedChange={(isChecked) => {
+                      setShowPoseOverlay(isChecked);
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </TabsContent>
@@ -353,6 +381,13 @@ export default function ObjectSettingsView({
                 containerRef={containerRef}
                 cameraWidth={cameraConfig.detect.width}
                 cameraHeight={cameraConfig.detect.height}
+              />
+            )}
+            {showPoseOverlay && selectedCamera && (
+              <PoseOverlay
+                cameraName={selectedCamera}
+                containerRef={containerRef}
+                enabled={showPoseOverlay}
               />
             )}
           </div>

@@ -80,9 +80,14 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
 
         start = datetime.datetime.now().timestamp()
         obj_id = obj_data["id"]
+        obj_label = obj_data.get("label", "unknown")
+
+        logger.info(
+            f"Pose process_frame called: camera={camera}, id={obj_id}, label={obj_label}, score={obj_data.get('score', 0):.2f}"
+        )
 
         # Only process person objects
-        if obj_data.get("label") != "person":
+        if obj_label != "person":
             return
 
         # Don't overwrite sub_label for objects that already have a non-pose sub_label
