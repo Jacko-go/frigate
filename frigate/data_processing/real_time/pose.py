@@ -72,7 +72,15 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         self.metrics.pose_fps.value = self.poses_per_second.eps()
         camera = obj_data["camera"]
 
-        cam_pose_enabled = self.config.cameras[camera].pose_detection.enabled if camera in self.config.cameras else False
+        cam_pose_enabled = (
+            self.config.cameras[camera].pose_detection.enabled
+            if camera in self.config.cameras
+            else False
+        )
+
+        # Fall back to global enabled flag if per-camera isn't explicitly set
+        if not cam_pose_enabled and self.config.pose_detection.enabled:
+            cam_pose_enabled = True
 
         logger.info(
             f"Pose process_frame: camera={camera}, label={obj_data.get('label')}, "
