@@ -52,7 +52,7 @@ import MobileReviewSettingsDrawer from "@/components/overlay/MobileReviewSetting
 import Logo from "@/components/Logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FaVideo } from "react-icons/fa";
-import { GiBone } from "react-icons/gi";
+import { MdAccessibility } from "react-icons/md";
 import { VideoResolutionType } from "@/types/live";
 import RecordingPoseOverlay from "@/components/overlay/RecordingPoseOverlay";
 import {
@@ -606,7 +606,7 @@ export function RecordingView({
               size="sm"
               onClick={() => setShowPoseOverlay(!showPoseOverlay)}
             >
-              <GiBone className={cn("size-5", showPoseOverlay ? "text-white" : "text-secondary-foreground")} />
+              <MdAccessibility className={cn("size-5", showPoseOverlay ? "text-white" : "text-secondary-foreground")} />
               {isDesktop && (
                 <div className={showPoseOverlay ? "text-white" : "text-primary"}>
                   Pose
