@@ -9,18 +9,39 @@ echo "🔄 Pulling latest code..."
 cd "$REPO_DIR"
 git pull
 
-echo "📦 Downloading pose models (if needed)..."
+echo "📦 Exporting pose models (if needed)..."
 MODELS_DIR="$REPO_DIR/models"
 mkdir -p "$MODELS_DIR"
+
+# Set up a lightweight venv for model export (only needs ultralytics + onnx)
+VENV_DIR="$REPO_DIR/.pose-venv"
+if [ ! -d "$VENV_DIR" ]; then
+  echo "  🔧 Creating Python venv for model export..."
+  python3 -m venv "$VENV_DIR"
+  "$VENV_DIR/bin/pip" install --quiet ultralytics onnx
+fi
+
 POSE_MODELS="yolo11n-pose yolo11s-pose yolo11m-pose yolo11l-pose yolo11x-pose"
 for model in $POSE_MODELS; do
-  if [ ! -f "$MODELS_DIR/${model}.onnx" ]; then
-    echo "  ⬇ Downloading ${model}.onnx..."
-    wget -q -O "$MODELS_DIR/${model}.onnx" \
-      "https://github.com/ultralytics/assets/releases/download/v8.3.0/${model}.onnx" || \
-      echo "  ⚠ Failed to download ${model}.onnx"
+  if [ ! -f "$MODELS_DIR/${model}.onnx" ] || [ ! -s "$MODELS_DIR/${model}.onnx" ]; then
+    echo "  ⬇ Exporting ${model} to ONNX..."
+    # Remove empty/corrupt files
+    rm -f "$MODELS_DIR/${model}.onnx"
+    "$VENV_DIR/bin/python" -c "
+from ultralytics import YOLO
+import shutil, os
+model = YOLO('${model}.pt')
+export_path = model.export(format='onnx', imgsz=640)
+if export_path and os.path.exists(export_path):
+    shutil.move(str(export_path), '$MODELS_DIR/${model}.onnx')
+    print(f'  ✓ Exported to $MODELS_DIR/${model}.onnx')
+    # Clean up the downloaded .pt file
+    pt_file = '${model}.pt'
+    if os.path.exists(pt_file):
+        os.remove(pt_file)
+" || echo "  ⚠ Failed to export ${model}"
   else
-    echo "  ✓ ${model}.onnx already exists"
+    echo "  ✓ ${model}.onnx already exists ($(du -h "$MODELS_DIR/${model}.onnx" | cut -f1))"
   fi
 done
 
