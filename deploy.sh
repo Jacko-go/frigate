@@ -57,7 +57,7 @@ docker run -d \
   --name "$CONTAINER_NAME" \
   --restart=unless-stopped \
   --privileged \
-  --shm-size=256mb \
+  --shm-size=512mb \
   --tmpfs /tmp/cache:size=1G,mode=1777 \
   --network frigate_default \
   -p 5000:5000 \
