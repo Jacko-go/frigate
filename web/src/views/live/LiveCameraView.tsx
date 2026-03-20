@@ -1453,6 +1453,13 @@ function FrigateCameraFeatures({
                     }
                   />
                 )}
+                <FilterSwitch
+                  label="Pose overlay"
+                  isChecked={showPoseOverlay}
+                  onCheckedChange={() =>
+                    setShowPoseOverlay(!showPoseOverlay)
+                  }
+                />
               </>
             )}
 

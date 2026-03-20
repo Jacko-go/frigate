@@ -26,6 +26,7 @@ from .api import RealTimeProcessorApi
 logger = logging.getLogger(__name__)
 
 MAX_POSE_ATTEMPTS = 8
+MIN_CROP_PIXELS = 40  # skip tiny person crops
 
 
 class PoseRealTimeProcessor(RealTimeProcessorApi):
@@ -99,24 +100,45 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         # Check person score against threshold
         score = obj_data.get("score", 0.0)
         if score < self.pose_config.min_score:
+            logger.debug(
+                f"Skipping pose for {obj_id}: score {score:.2f} < min_score {self.pose_config.min_score}"
+            )
             return
 
         # Get person bounding box
         person_box = obj_data.get("box")
         if not person_box:
+            logger.debug(f"Skipping pose for {obj_id}: no bounding box")
             return
 
         # Check minimum area
         min_area = self.config.cameras[camera].pose_detection.min_area
-        if area(person_box) < min_area:
+        person_area = area(person_box)
+        if person_area < min_area:
+            logger.debug(
+                f"Skipping pose for {obj_id}: area {person_area} < min_area {min_area}"
+            )
             return
 
         # Extract person crop from frame
         left, top, right, bottom = person_box
+        frame_h, frame_w = frame.shape[:2]
+
+        # Convert from YUV to BGR
         rgb = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_I420)
+        # After YUV conversion the height is 2/3 of the YUV buffer
+        rgb_h, rgb_w = rgb.shape[:2]
+
+        # Clamp box to frame bounds
+        left = max(0, left)
+        top = max(0, top)
+        right = min(rgb_w, right)
+        bottom = min(rgb_h, bottom)
+
         person_crop = rgb[top:bottom, left:right]
 
-        if person_crop.size == 0:
+        if person_crop.size == 0 or person_crop.shape[0] < MIN_CROP_PIXELS or person_crop.shape[1] < MIN_CROP_PIXELS:
+            logger.debug(f"Skipping pose for {obj_id}: crop too small ({person_crop.shape})")
             return
 
         # Run pose estimation
@@ -166,19 +188,33 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         )
 
         # Publish tracked object update for UI
+        # Normalize keypoints to full frame (0-1 range)
+        norm_keypoints = []
+        for kp in keypoints:
+            nx = (left + kp[0]) / rgb_w
+            ny = (top + kp[1]) / rgb_h
+            norm_keypoints.append({"x": round(nx, 4), "y": round(ny, 4), "confidence": round(kp[2], 3)})
+
+        # Normalize bounding box to 0-1 range [y1, x1, y2, x2]
+        norm_box = [
+            round(top / rgb_h, 4),
+            round(left / rgb_w, 4),
+            round(bottom / rgb_h, 4),
+            round(right / rgb_w, 4),
+        ]
+
         self.requestor.send_data(
             "tracked_object_update",
             json.dumps(
                 {
                     "type": TrackedObjectUpdateTypesEnum.pose,
-                    "name": pose_name,
-                    "score": pose_conf,
+                    "pose": pose_name,
+                    "score": round(pose_conf, 3),
                     "id": obj_id,
                     "camera": camera,
                     "timestamp": start,
-                    "keypoints": [
-                        {"x": kp[0], "y": kp[1], "conf": kp[2]} for kp in keypoints
-                    ],
+                    "keypoints": norm_keypoints,
+                    "box": norm_box,
                 }
             ),
         )
