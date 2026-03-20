@@ -24,6 +24,7 @@ from frigate.api import (
     media,
     motion_search,
     notification,
+    pose,
     preview,
     record,
     review,
@@ -143,6 +144,7 @@ def create_fastapi_app(
     app.include_router(motion_search.router)
     app.include_router(record.router)
     app.include_router(debug_replay.router)
+    app.include_router(pose.router)
     # App Properties
     app.frigate_config = frigate_config
     app.genai_manager = GenAIClientManager(frigate_config)
