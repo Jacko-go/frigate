@@ -28,7 +28,18 @@ logger = logging.getLogger(__name__)
 
 MIN_CROP_PIXELS = 40  # skip tiny person crops
 SMOOTHING_WINDOW = 5  # number of recent frames for majority-vote smoothing
-SMOOTHING_THRESHOLD = 3  # min votes to accept a pose
+SMOOTHING_THRESHOLD = 2  # min votes to accept a pose (lowered: related poses split votes)
+
+# Poses that should be grouped together for smoothing purposes
+# When competing related poses split votes, the group winner counts
+POSE_GROUPS = {
+    "arms_raised": ["hands_up", "left_hand_up", "right_hand_up"],
+}
+
+# Remap noisy pose classifications to canonical names
+POSE_REMAP = {
+    "waving": "hands_up",  # waving is just hands_up from HA perspective
+}
 
 
 class PoseRealTimeProcessor(RealTimeProcessorApi):
@@ -204,6 +215,8 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         raw_conf = 0.0
         if result:
             raw_pose, raw_conf = result
+            # Remap noisy poses to canonical names
+            raw_pose = POSE_REMAP.get(raw_pose, raw_pose)
 
         # --- Temporal smoothing via majority vote ---
         if obj_id not in self.pose_smooth_buffer:
@@ -214,6 +227,21 @@ class PoseRealTimeProcessor(RealTimeProcessorApi):
         # Count votes (ignoring confidence for the vote)
         pose_votes = Counter(entry[0] for entry in self.pose_smooth_buffer[obj_id])
         top_pose, top_count = pose_votes.most_common(1)[0]
+
+        # If no single pose has enough votes, check grouped poses
+        if top_count < SMOOTHING_THRESHOLD and top_pose != "unknown":
+            # Check if related poses together have enough votes
+            for group_name, group_members in POSE_GROUPS.items():
+                group_total = sum(pose_votes.get(p, 0) for p in group_members)
+                if group_total >= SMOOTHING_THRESHOLD:
+                    # Pick the most specific member that has votes
+                    # Priority: hands_up > waving > left/right_hand_up
+                    for member in group_members:
+                        if pose_votes.get(member, 0) > 0:
+                            top_pose = member
+                            top_count = group_total
+                            break
+                    break
 
         # Only accept if it has enough votes (and isn't 'unknown')
         if top_pose != "unknown" and top_count >= SMOOTHING_THRESHOLD:
